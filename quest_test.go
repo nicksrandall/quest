@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 )
 
@@ -50,6 +49,18 @@ func TestQuest(t *testing.T) {
 	}
 }
 
-func TestMain(m *testing.M) {
-	os.Exit(m.Run())
+func Example() {
+	var body interface{}
+	err := Get("path/to/some/resource").
+		Header("X-Some-Header", "value").
+		Send().
+		ExpectSuccess().
+		GetJSON(&body).
+		Done()
+
+	if err != nil {
+		// handle error
+	}
+
+	// do something with body
 }
