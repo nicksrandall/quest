@@ -49,6 +49,23 @@ type SpecialResponse struct {
 
 // override the `Next` method
 func (r *SpecialResponse) Next() quest.NextInterface {
-	return &quest.Next{&SpecialClient{}, r.GetRequest().GetError()}
+	return &quest.Next{&SpecialClient{&quest.Client{}}, r.GetRequest().GetError()}
+}
+
+func main() {
+  client := &SpecialClient{&quest.Client{}}
+
+  var value interface{}
+  err := client.Get("some/path/to/resource").
+    Send().
+    ExpectSuccess().
+    GetJSON(&value)
+    Done()
+  
+  if err != nil {
+    log.Panic(err.Error())
+  }
+
+  // so something with value
 }
 ```
