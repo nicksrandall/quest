@@ -57,6 +57,7 @@ func main() {
 
   var value interface{}
   err := client.Get("some/path/to/resource").
+    Auth("some-fake-key").
     Send().
     ExpectSuccess().
     GetJSON(&value)
