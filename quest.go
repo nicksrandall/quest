@@ -17,7 +17,7 @@ import (
 	"github.com/opentracing/opentracing-go/ext"
 )
 
-type Request struct {
+type request struct {
 	*url.URL
 	method  string
 	data    *bytes.Buffer
@@ -26,87 +26,42 @@ type Request struct {
 	span    opentracing.Span
 }
 
-type Response struct {
+type response struct {
 	*http.Response
-	req *Request
+	req *request
 }
 
-type Next struct {
-	ClientInterface
+type next struct {
 	err error
 }
 
-type RequestError struct {
+type requestError struct {
 	message string
-	Request *Request
+	Request *request
 }
 
-type ResponseError struct {
+type responseError struct {
 	message  string
-	Request  *Request
-	Response *Response
+	Request  *request
+	Response *response
 }
 
-func (e RequestError) Error() string {
-	return fmt.Sprintf("[Quest]: Request Error - %s\n\nRequest Info:\n %s", e.message, e.Request.debug())
+func (e requestError) Error() string {
+	return fmt.Sprintf("[Quest]: Request Error - %s\n\nRequest Info:\n %s", e.message, e.Request.format())
 }
 
-func (e ResponseError) Error() string {
-	return fmt.Sprintf("[Quest]: Request Error - %s\n\nRequest Info:\n %s\n\nResponse Info:\n %s", e.message, e.Request.debug(), e.Response.debug())
+func (e responseError) Error() string {
+	return fmt.Sprintf("[Quest]: Request Error - %s\n\nRequest Info:\n %s\n\nResponse Info:\n %s", e.message, e.Request.format(), e.Response.format())
 }
 
-type RequestInterface interface {
-	GetError() error
-	SetError(error) RequestInterface
-	SetContext(context.Context) RequestInterface
-	Header(string, string) RequestInterface
-	QueryParam(string, string) RequestInterface
-	Param(string, string) RequestInterface
-	Body(*bytes.Buffer) RequestInterface
-	JSONBody(interface{}) RequestInterface
-	MultipartBody(*questmultipart.Form) RequestInterface
-	Send() ResponseInterface
-}
-
-type ResponseInterface interface {
-	GetRequest() RequestInterface
-	ExpectSuccess() ResponseInterface
-	ExpectStatusCode(int) ResponseInterface
-	ExpectHeader(string, string) ResponseInterface
-	ExpectType(string) ResponseInterface
-	GetHeader(string, *string) ResponseInterface
-	PrintJSON() ResponseInterface
-	GetBody(*string) ResponseInterface
-	GetJSON(interface{}) ResponseInterface
-	Next() NextInterface
-	Done() error
-}
-
-type ClientInterface interface {
-	New(string, string) RequestInterface
-	Get(string) RequestInterface
-	Post(string) RequestInterface
-	Put(string) RequestInterface
-	Delete(string) RequestInterface
-}
-
-type NextInterface interface {
-	New(string, string) RequestInterface
-	Get(string) RequestInterface
-	Post(string) RequestInterface
-	Put(string) RequestInterface
-	Delete(string) RequestInterface
-}
-
-type Client struct{}
-
-func (_ *Client) New(method, path string) RequestInterface {
+// New creates a new request with given http method and path (uri)
+func New(method, path string) *request {
 	u, err := url.Parse(path)
 	if err != nil {
-		return &Request{err: fmt.Errorf("error parsing url %q: %v", path, err)}
+		return &request{err: fmt.Errorf("error parsing url %q: %v", path, err)}
 	}
 
-	return &Request{
+	return &request{
 		URL:    u,
 		method: method,
 		headers: map[string]string{
@@ -117,45 +72,64 @@ func (_ *Client) New(method, path string) RequestInterface {
 	}
 }
 
-func (c *Client) Get(path string) RequestInterface {
-	return c.New(http.MethodGet, path)
+// Get creates a new http "GET" request for path (uri)
+func Get(path string) *request {
+	return New(http.MethodGet, path)
 }
 
-func (c *Client) Post(path string) RequestInterface {
-	return c.New(http.MethodPost, path)
+// Post creates a new http "POST" request for path (uri)
+func Post(path string) *request {
+	return New(http.MethodPost, path)
 }
 
-func (c *Client) Put(path string) RequestInterface {
-	return c.New(http.MethodPut, path)
+// Put creates a new http "Put" request for path (uri)
+func Put(path string) *request {
+	return New(http.MethodPut, path)
 }
 
-func (c *Client) Delete(path string) RequestInterface {
-	return c.New(http.MethodDelete, path)
+// Delete creates a new http "Delete" request for path (uri)
+func Delete(path string) *request {
+	return New(http.MethodDelete, path)
 }
 
-func (n *Next) New(method, path string) RequestInterface {
-	req := n.ClientInterface.New(method, path)
-	if req.GetError() == nil {
-		req.SetError(n.err)
+// New creates a new request with given http method and path (uri) and is
+// used when chaining requests together
+func (n *next) New(method, path string) *request {
+	req := New(method, path)
+	if req.err == nil {
+		req.err = n.err
 	}
 	return req
 }
 
-func (r *Request) GetError() error {
-	return r.err
+// Get creates a new http "GET" request for path (uri) and is used when chaining requests together
+func (n *next) Get(path string) *request {
+	return n.New(http.MethodGet, path)
 }
 
-func (r *Request) SetError(err error) RequestInterface {
-	r.err = err
-	return r
+// Post creates a new http "POST" request for path (uri) and is used when chaining requests together
+func (n *next) Post(path string) *request {
+	return n.New(http.MethodPost, path)
 }
 
-func (r *Request) SetContext(ctx context.Context) RequestInterface {
+// Put creates a new http "Put" request for path (uri) and is used when chaining requests together
+func (n *next) Put(path string) *request {
+	return n.New(http.MethodPut, path)
+}
+
+// Delete creates a new http "Delete" request for path (uri) and is used when chaining requests together
+func (n *next) Delete(path string) *request {
+	return n.New(http.MethodDelete, path)
+}
+
+// Span creates an open tracing span for request
+func (r *request) StartSpan(ctx context.Context) *request {
 	r.span, _ = opentracing.StartSpanFromContext(ctx, "Quest: request")
 	return r
 }
 
-func (r *Request) Header(key, value string) RequestInterface {
+// Header sets a header on request with given key and value
+func (r *request) Header(key, value string) *request {
 	if r.err != nil {
 		return r
 	}
@@ -163,7 +137,8 @@ func (r *Request) Header(key, value string) RequestInterface {
 	return r
 }
 
-func (r *Request) QueryParam(key, value string) RequestInterface {
+// QueryParam adds a query param to the url
+func (r *request) QueryParam(key, value string) *request {
 	if r.err != nil {
 		return r
 	}
@@ -173,7 +148,8 @@ func (r *Request) QueryParam(key, value string) RequestInterface {
 	return r
 }
 
-func (r *Request) Param(key, value string) RequestInterface {
+// Param replaces url param (denoted with `:key`) with given value
+func (r *request) Param(key, value string) *request {
 	if r.err != nil {
 		return r
 	}
@@ -187,7 +163,8 @@ func (r *Request) Param(key, value string) RequestInterface {
 	return r
 }
 
-func (r *Request) Body(value *bytes.Buffer) RequestInterface {
+// Body sets the body for the request
+func (r *request) Body(value *bytes.Buffer) *request {
 	if r.err != nil {
 		return r
 	}
@@ -195,7 +172,8 @@ func (r *Request) Body(value *bytes.Buffer) RequestInterface {
 	return r
 }
 
-func (r *Request) JSONBody(value interface{}) RequestInterface {
+// JSONBody sets the given value as a JSON encoded string as the body of the request
+func (r *request) JSONBody(value interface{}) *request {
 	if r.err != nil {
 		return r
 	}
@@ -208,7 +186,8 @@ func (r *Request) JSONBody(value interface{}) RequestInterface {
 	return r.Body(bytes.NewBuffer(b))
 }
 
-func (r *Request) MultipartBody(form *questmultipart.Form) RequestInterface {
+// MultipartBody will set a multipart form as the body of the request
+func (r *request) MultipartBody(form *questmultipart.Form) *request {
 	if r.err != nil {
 		return r
 	}
@@ -217,9 +196,10 @@ func (r *Request) MultipartBody(form *questmultipart.Form) RequestInterface {
 	return r.Body(form.Buffer)
 }
 
-func (r *Request) Send() ResponseInterface {
+// Send sends the request and returns the response
+func (r *request) Send() *response {
 	if r.err != nil {
-		return &Response{
+		return &response{
 			Response: &http.Response{},
 			req:      r,
 		}
@@ -241,7 +221,7 @@ func (r *Request) Send() ResponseInterface {
 	req, err := http.NewRequest(r.method, r.URL.String(), r.data)
 	if err != nil {
 		r.err = handleRequestError(err, r)
-		return &Response{
+		return &response{
 			Response: &http.Response{},
 			req:      r,
 		}
@@ -259,26 +239,23 @@ func (r *Request) Send() ResponseInterface {
 		)
 	}
 
-	response, err := client.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		r.err = handleRequestError(err, r)
-		return &Response{
-			Response: response,
+		return &response{
+			Response: resp,
 			req:      r,
 		}
 	}
 
-	return &Response{
-		Response: response,
+	return &response{
+		Response: resp,
 		req:      r,
 	}
 }
 
-func (r *Response) GetRequest() RequestInterface {
-	return r.req
-}
-
-func (r *Response) ExpectSuccess() ResponseInterface {
+// ExpectSuccess will error if StatusCode is not in 200 range
+func (r *response) ExpectSuccess() *response {
 	if r.req.err != nil {
 		return r
 	}
@@ -290,7 +267,8 @@ func (r *Response) ExpectSuccess() ResponseInterface {
 	return r
 }
 
-func (r *Response) ExpectStatusCode(code int) ResponseInterface {
+// ExpectStatusCode will error if StatusCode is not specified code
+func (r *response) ExpectStatusCode(code int) *response {
 	if r.req.err != nil {
 		return r
 	}
@@ -302,7 +280,8 @@ func (r *Response) ExpectStatusCode(code int) ResponseInterface {
 	return r
 }
 
-func (r *Response) ExpectHeader(key, value string) ResponseInterface {
+// ExpectHeader will error if given header is not set with given value
+func (r *response) ExpectHeader(key, value string) *response {
 	if r.req.err != nil {
 		return r
 	}
@@ -314,7 +293,8 @@ func (r *Response) ExpectHeader(key, value string) ResponseInterface {
 	return r
 }
 
-func (r *Response) ExpectType(value string) ResponseInterface {
+// ExpectType will error if header "Content-Type" is not specified value
+func (r *response) ExpectType(value string) *response {
 	if r.req.err != nil {
 		return r
 	}
@@ -340,7 +320,8 @@ func (r *Response) ExpectType(value string) ResponseInterface {
 	return r.ExpectHeader("Content-Type", typeValue)
 }
 
-func (r *Response) GetHeader(key string, into *string) ResponseInterface {
+// GetHeader stores header value with key into into paramiter
+func (r *response) GetHeader(key string, into *string) *response {
 	if r.req.err != nil {
 		return r
 	}
@@ -348,7 +329,8 @@ func (r *Response) GetHeader(key string, into *string) ResponseInterface {
 	return r
 }
 
-func (r *Response) PrintJSON() ResponseInterface {
+// PrintJSON will print response as json, can be use for debugging purposes
+func (r *response) PrintJSON() *response {
 	if r.req.err != nil {
 		return r
 	}
@@ -362,7 +344,8 @@ func (r *Response) PrintJSON() ResponseInterface {
 	return r
 }
 
-func (r *Response) GetBody(into *string) ResponseInterface {
+// GetBody stores the response body into into param
+func (r *response) GetBody(into *string) *response {
 	if r.req.err != nil {
 		return r
 	}
@@ -373,7 +356,8 @@ func (r *Response) GetBody(into *string) ResponseInterface {
 	return r
 }
 
-func (r *Response) GetJSON(into interface{}) ResponseInterface {
+// GetJSON decodes and stores the response body
+func (r *response) GetJSON(into interface{}) *response {
 	if r.req.err != nil {
 		return r
 	}
@@ -386,16 +370,23 @@ func (r *Response) GetJSON(into interface{}) ResponseInterface {
 	return r
 }
 
-func (r *Response) Next() NextInterface {
-	return &Next{&Client{}, r.req.err}
+// Next allows a new request to be chained onto this request, assuming the first request
+// did not fail
+func (r *response) Next() *next {
+	return &next{r.req.err}
 }
 
-func (r *Response) Done() error {
+// Done will return the first error that occured durring the request's life-cycle
+//
+// It is important to note that if any method errors, all subsequest methods will short
+// circut and not be execuited
+func (r *response) Done() error {
 	return r.req.err
 }
 
-func (r *Request) MarshalJSON() ([]byte, error) {
-	return json.MarshalIndent(RequestJSON{
+// MarshalJSON implements `json.Marshaler` interface
+func (r *request) MarshalJSON() ([]byte, error) {
+	return json.MarshalIndent(requestJSON{
 		r.URL,
 		r.method,
 		string(r.data.Bytes()),
@@ -403,8 +394,9 @@ func (r *Request) MarshalJSON() ([]byte, error) {
 	}, "", "  ")
 }
 
-func (r *Request) UnmarshalJSON(b []byte) error {
-	temp := &RequestJSON{}
+// UnmarshalJSON implements `json.Unmarshaler` interface
+func (r *request) UnmarshalJSON(b []byte) error {
+	temp := &requestJSON{}
 	if err := json.Unmarshal(b, &temp); err != nil {
 		return err
 	}
@@ -417,23 +409,24 @@ func (r *Request) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-type RequestJSON struct {
+type requestJSON struct {
 	*url.URL
 	Method  string
 	Data    string
 	Headers map[string]string
 }
 
-type ResponseJSON struct {
+type responseJSON struct {
 	StatusCode    int
 	Header        http.Header
 	Body          string
 	ContentLength int64
 }
 
-func (r *Response) MarshalJSON() ([]byte, error) {
+// MarshalJSON implements `json.Marshaler` interface
+func (r *response) MarshalJSON() ([]byte, error) {
 	body, _ := ioutil.ReadAll(r.Response.Body)
-	return json.MarshalIndent(ResponseJSON{
+	return json.MarshalIndent(responseJSON{
 		r.Response.StatusCode,
 		r.Response.Header,
 		string(body),
@@ -441,30 +434,31 @@ func (r *Response) MarshalJSON() ([]byte, error) {
 	}, "", "  ")
 }
 
-func (r *Response) UnmarshalJSON(b []byte) error {
+// UnmarshalJSON implements `json.Unmarshaler` interface
+func (r *response) UnmarshalJSON(b []byte) error {
 	// not implemented
 	return nil
 }
 
-func (r *Request) debug() string {
+func (r *request) format() string {
 	b, _ := json.MarshalIndent(r, "", "  ")
 	return string(b)
 }
 
-func (r *Response) debug() string {
+func (r *response) format() string {
 	b, _ := json.MarshalIndent(r, "", "  ")
 	return string(b)
 }
 
-func handleRequestError(err error, req *Request) *RequestError {
-	return &RequestError{
+func handleRequestError(err error, req *request) *requestError {
+	return &requestError{
 		message: err.Error(),
 		Request: req,
 	}
 }
 
-func handleResponseError(err error, req *Request, resp *Response) *ResponseError {
-	return &ResponseError{
+func handleResponseError(err error, req *request, resp *response) *responseError {
+	return &responseError{
 		message:  err.Error(),
 		Request:  req,
 		Response: resp,
