@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -106,7 +105,7 @@ func (n *Next) Delete(path string) *Request {
 	return n.New(http.MethodDelete, path)
 }
 
-// Span creates an open tracing span for request
+// StartSpan creates an open tracing span for request
 func (r *Request) StartSpan(ctx context.Context) *Request {
 	r.span, _ = opentracing.StartSpanFromContext(ctx, "Quest: request")
 	return r
@@ -244,7 +243,7 @@ func (r *Response) ExpectSuccess() *Response {
 		return r
 	}
 	if actual := r.Response.StatusCode; actual < 200 || actual >= 300 {
-		err := errors.New(fmt.Sprintf("Invalid StatusCode. Expected to be in 200 range, got '%d'", actual))
+		err := fmt.Errorf("Invalid StatusCode. Expected to be in 200 range, got '%d'", actual)
 		r.req.err = handleResponseError(err, r.req, r)
 		return r
 	}
@@ -257,7 +256,7 @@ func (r *Response) ExpectStatusCode(code int) *Response {
 		return r
 	}
 	if actual := r.Response.StatusCode; actual != code {
-		err := errors.New(fmt.Sprintf("Invalid StatusCode. Expected to be '%d', got '%d'", code, actual))
+		err := fmt.Errorf("Invalid StatusCode. Expected to be '%d', got '%d'", code, actual)
 		r.req.err = handleResponseError(err, r.req, r)
 		return r
 	}
@@ -270,7 +269,7 @@ func (r *Response) ExpectHeader(key, value string) *Response {
 		return r
 	}
 	if actual := r.Response.Header.Get(key); !strings.Contains(actual, value) {
-		err := errors.New(fmt.Sprintf("Invalid Header. Expected %q header to be %q, got %q", key, value, actual))
+		err := fmt.Errorf("Invalid Header. Expected %q header to be %q, got %q", key, value, actual)
 		r.req.err = handleResponseError(err, r.req, r)
 		return r
 	}
