@@ -17,7 +17,8 @@ import (
 	"github.com/opentracing/opentracing-go/ext"
 )
 
-type request struct {
+// Request is the HTTP request to be sent
+type Request struct {
 	*url.URL
 	method  string
 	data    *bytes.Buffer
@@ -26,42 +27,25 @@ type request struct {
 	span    opentracing.Span
 }
 
-type response struct {
+// Response is the HTTP response
+type Response struct {
 	*http.Response
-	req *request
+	req *Request
 }
 
-type next struct {
+// Next is used to chain requests together
+type Next struct {
 	err error
 }
 
-type requestError struct {
-	message string
-	Request *request
-}
-
-type responseError struct {
-	message  string
-	Request  *request
-	Response *response
-}
-
-func (e requestError) Error() string {
-	return fmt.Sprintf("[Quest]: Request Error - %s\n\nRequest Info:\n %s", e.message, e.Request.format())
-}
-
-func (e responseError) Error() string {
-	return fmt.Sprintf("[Quest]: Request Error - %s\n\nRequest Info:\n %s\n\nResponse Info:\n %s", e.message, e.Request.format(), e.Response.format())
-}
-
 // New creates a new request with given http method and path (uri)
-func New(method, path string) *request {
+func New(method, path string) *Request {
 	u, err := url.Parse(path)
 	if err != nil {
-		return &request{err: fmt.Errorf("error parsing url %q: %v", path, err)}
+		return &Request{err: fmt.Errorf("error parsing url %q: %v", path, err)}
 	}
 
-	return &request{
+	return &Request{
 		URL:    u,
 		method: method,
 		headers: map[string]string{
@@ -73,28 +57,28 @@ func New(method, path string) *request {
 }
 
 // Get creates a new http "GET" request for path (uri)
-func Get(path string) *request {
+func Get(path string) *Request {
 	return New(http.MethodGet, path)
 }
 
 // Post creates a new http "POST" request for path (uri)
-func Post(path string) *request {
+func Post(path string) *Request {
 	return New(http.MethodPost, path)
 }
 
 // Put creates a new http "Put" request for path (uri)
-func Put(path string) *request {
+func Put(path string) *Request {
 	return New(http.MethodPut, path)
 }
 
 // Delete creates a new http "Delete" request for path (uri)
-func Delete(path string) *request {
+func Delete(path string) *Request {
 	return New(http.MethodDelete, path)
 }
 
 // New creates a new request with given http method and path (uri) and is
 // used when chaining requests together
-func (n *next) New(method, path string) *request {
+func (n *Next) New(method, path string) *Request {
 	req := New(method, path)
 	if req.err == nil {
 		req.err = n.err
@@ -103,33 +87,33 @@ func (n *next) New(method, path string) *request {
 }
 
 // Get creates a new http "GET" request for path (uri) and is used when chaining requests together
-func (n *next) Get(path string) *request {
+func (n *Next) Get(path string) *Request {
 	return n.New(http.MethodGet, path)
 }
 
 // Post creates a new http "POST" request for path (uri) and is used when chaining requests together
-func (n *next) Post(path string) *request {
+func (n *Next) Post(path string) *Request {
 	return n.New(http.MethodPost, path)
 }
 
 // Put creates a new http "Put" request for path (uri) and is used when chaining requests together
-func (n *next) Put(path string) *request {
+func (n *Next) Put(path string) *Request {
 	return n.New(http.MethodPut, path)
 }
 
 // Delete creates a new http "Delete" request for path (uri) and is used when chaining requests together
-func (n *next) Delete(path string) *request {
+func (n *Next) Delete(path string) *Request {
 	return n.New(http.MethodDelete, path)
 }
 
 // Span creates an open tracing span for request
-func (r *request) StartSpan(ctx context.Context) *request {
+func (r *Request) StartSpan(ctx context.Context) *Request {
 	r.span, _ = opentracing.StartSpanFromContext(ctx, "Quest: request")
 	return r
 }
 
 // Header sets a header on request with given key and value
-func (r *request) Header(key, value string) *request {
+func (r *Request) Header(key, value string) *Request {
 	if r.err != nil {
 		return r
 	}
@@ -138,7 +122,7 @@ func (r *request) Header(key, value string) *request {
 }
 
 // QueryParam adds a query param to the url
-func (r *request) QueryParam(key, value string) *request {
+func (r *Request) QueryParam(key, value string) *Request {
 	if r.err != nil {
 		return r
 	}
@@ -149,7 +133,7 @@ func (r *request) QueryParam(key, value string) *request {
 }
 
 // Param replaces url param (denoted with `:key`) with given value
-func (r *request) Param(key, value string) *request {
+func (r *Request) Param(key, value string) *Request {
 	if r.err != nil {
 		return r
 	}
@@ -164,7 +148,7 @@ func (r *request) Param(key, value string) *request {
 }
 
 // Body sets the body for the request
-func (r *request) Body(value *bytes.Buffer) *request {
+func (r *Request) Body(value *bytes.Buffer) *Request {
 	if r.err != nil {
 		return r
 	}
@@ -173,7 +157,7 @@ func (r *request) Body(value *bytes.Buffer) *request {
 }
 
 // JSONBody sets the given value as a JSON encoded string as the body of the request
-func (r *request) JSONBody(value interface{}) *request {
+func (r *Request) JSONBody(value interface{}) *Request {
 	if r.err != nil {
 		return r
 	}
@@ -187,7 +171,7 @@ func (r *request) JSONBody(value interface{}) *request {
 }
 
 // MultipartBody will set a multipart form as the body of the request
-func (r *request) MultipartBody(form *questmultipart.Form) *request {
+func (r *Request) MultipartBody(form *questmultipart.Form) *Request {
 	if r.err != nil {
 		return r
 	}
@@ -197,9 +181,9 @@ func (r *request) MultipartBody(form *questmultipart.Form) *request {
 }
 
 // Send sends the request and returns the response
-func (r *request) Send() *response {
+func (r *Request) Send() *Response {
 	if r.err != nil {
-		return &response{
+		return &Response{
 			Response: &http.Response{},
 			req:      r,
 		}
@@ -221,7 +205,7 @@ func (r *request) Send() *response {
 	req, err := http.NewRequest(r.method, r.URL.String(), r.data)
 	if err != nil {
 		r.err = handleRequestError(err, r)
-		return &response{
+		return &Response{
 			Response: &http.Response{},
 			req:      r,
 		}
@@ -242,20 +226,20 @@ func (r *request) Send() *response {
 	resp, err := client.Do(req)
 	if err != nil {
 		r.err = handleRequestError(err, r)
-		return &response{
+		return &Response{
 			Response: resp,
 			req:      r,
 		}
 	}
 
-	return &response{
+	return &Response{
 		Response: resp,
 		req:      r,
 	}
 }
 
 // ExpectSuccess will error if StatusCode is not in 200 range
-func (r *response) ExpectSuccess() *response {
+func (r *Response) ExpectSuccess() *Response {
 	if r.req.err != nil {
 		return r
 	}
@@ -268,7 +252,7 @@ func (r *response) ExpectSuccess() *response {
 }
 
 // ExpectStatusCode will error if StatusCode is not specified code
-func (r *response) ExpectStatusCode(code int) *response {
+func (r *Response) ExpectStatusCode(code int) *Response {
 	if r.req.err != nil {
 		return r
 	}
@@ -281,7 +265,7 @@ func (r *response) ExpectStatusCode(code int) *response {
 }
 
 // ExpectHeader will error if given header is not set with given value
-func (r *response) ExpectHeader(key, value string) *response {
+func (r *Response) ExpectHeader(key, value string) *Response {
 	if r.req.err != nil {
 		return r
 	}
@@ -294,7 +278,7 @@ func (r *response) ExpectHeader(key, value string) *response {
 }
 
 // ExpectType will error if header "Content-Type" is not specified value
-func (r *response) ExpectType(value string) *response {
+func (r *Response) ExpectType(value string) *Response {
 	if r.req.err != nil {
 		return r
 	}
@@ -321,7 +305,7 @@ func (r *response) ExpectType(value string) *response {
 }
 
 // GetHeader stores header value with key into into paramiter
-func (r *response) GetHeader(key string, into *string) *response {
+func (r *Response) GetHeader(key string, into *string) *Response {
 	if r.req.err != nil {
 		return r
 	}
@@ -330,7 +314,7 @@ func (r *response) GetHeader(key string, into *string) *response {
 }
 
 // PrintJSON will print response as json, can be use for debugging purposes
-func (r *response) PrintJSON() *response {
+func (r *Response) PrintJSON() *Response {
 	if r.req.err != nil {
 		return r
 	}
@@ -345,7 +329,7 @@ func (r *response) PrintJSON() *response {
 }
 
 // GetBody stores the response body into into param
-func (r *response) GetBody(into *string) *response {
+func (r *Response) GetBody(into *string) *Response {
 	if r.req.err != nil {
 		return r
 	}
@@ -357,7 +341,7 @@ func (r *response) GetBody(into *string) *response {
 }
 
 // GetJSON decodes and stores the response body
-func (r *response) GetJSON(into interface{}) *response {
+func (r *Response) GetJSON(into interface{}) *Response {
 	if r.req.err != nil {
 		return r
 	}
@@ -372,20 +356,20 @@ func (r *response) GetJSON(into interface{}) *response {
 
 // Next allows a new request to be chained onto this request, assuming the first request
 // did not fail
-func (r *response) Next() *next {
-	return &next{r.req.err}
+func (r *Response) Next() *Next {
+	return &Next{r.req.err}
 }
 
 // Done will return the first error that occured durring the request's life-cycle
 //
 // It is important to note that if any method errors, all subsequest methods will short
 // circut and not be execuited
-func (r *response) Done() error {
+func (r *Response) Done() error {
 	return r.req.err
 }
 
 // MarshalJSON implements `json.Marshaler` interface
-func (r *request) MarshalJSON() ([]byte, error) {
+func (r *Request) MarshalJSON() ([]byte, error) {
 	return json.MarshalIndent(requestJSON{
 		r.URL,
 		r.method,
@@ -395,7 +379,7 @@ func (r *request) MarshalJSON() ([]byte, error) {
 }
 
 // UnmarshalJSON implements `json.Unmarshaler` interface
-func (r *request) UnmarshalJSON(b []byte) error {
+func (r *Request) UnmarshalJSON(b []byte) error {
 	temp := &requestJSON{}
 	if err := json.Unmarshal(b, &temp); err != nil {
 		return err
@@ -424,7 +408,7 @@ type responseJSON struct {
 }
 
 // MarshalJSON implements `json.Marshaler` interface
-func (r *response) MarshalJSON() ([]byte, error) {
+func (r *Response) MarshalJSON() ([]byte, error) {
 	body, _ := ioutil.ReadAll(r.Response.Body)
 	return json.MarshalIndent(responseJSON{
 		r.Response.StatusCode,
@@ -435,29 +419,48 @@ func (r *response) MarshalJSON() ([]byte, error) {
 }
 
 // UnmarshalJSON implements `json.Unmarshaler` interface
-func (r *response) UnmarshalJSON(b []byte) error {
+func (r *Response) UnmarshalJSON(b []byte) error {
 	// not implemented
 	return nil
 }
 
-func (r *request) format() string {
+func (r *Request) format() string {
 	b, _ := json.MarshalIndent(r, "", "  ")
 	return string(b)
 }
 
-func (r *response) format() string {
+func (r *Response) format() string {
 	b, _ := json.MarshalIndent(r, "", "  ")
 	return string(b)
 }
 
-func handleRequestError(err error, req *request) *requestError {
+type requestError struct {
+	message string
+	Request *Request
+}
+
+type responseError struct {
+	message  string
+	Request  *Request
+	Response *Response
+}
+
+func (e requestError) Error() string {
+	return fmt.Sprintf("[Quest]: Request Error - %s\n\nRequest Info:\n %s", e.message, e.Request.format())
+}
+
+func (e responseError) Error() string {
+	return fmt.Sprintf("[Quest]: Request Error - %s\n\nRequest Info:\n %s\n\nResponse Info:\n %s", e.message, e.Request.format(), e.Response.format())
+}
+
+func handleRequestError(err error, req *Request) *requestError {
 	return &requestError{
 		message: err.Error(),
 		Request: req,
 	}
 }
 
-func handleResponseError(err error, req *request, resp *response) *responseError {
+func handleResponseError(err error, req *Request, resp *Response) *responseError {
 	return &responseError{
 		message:  err.Error(),
 		Request:  req,

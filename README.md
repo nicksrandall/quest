@@ -1,4 +1,5 @@
 # Quest
+[![GoDoc](https://godoc.org/github.com/nicksrandall/quest?status.svg)](https://godoc.org/github.com/nicksrandall/quest)
 A request (http) library for Go with a convenient, chain-able API.
 
 ## Errors
