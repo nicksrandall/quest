@@ -24,32 +24,32 @@ Embedding FTW!
 
 ```go
 type SpecialClient struct {
-	quest.ClientInterface
+  quest.ClientInterface
 }
 
 func (c *SpecialClient) New(method string, path string) quest.RequestInterface {
-	req := c.ClientInterface.New(method, path)
-	return &SpecialRequest{req}
+  req := c.ClientInterface.New(method, path)
+  return &SpecialRequest{req}
 }
 
 type SpecialRequest struct {
-	quest.RequestInterface
+  quest.RequestInterface
 }
 
 // Extend the api to add and `Auth` method
 func (r *SpecialRequest) Auth(key string) quest.RequestInterface {
-	// some fake auth logic
-	r.Header("X-Some-Authentication", key)
-	return r
+  // some fake auth logic
+  r.Header("X-Some-Authentication", key)
+  return r
 }
 
 type SpecialResponse struct {
-	quest.ResponseInterface
+  quest.ResponseInterface
 }
 
 // override the `Next` method
 func (r *SpecialResponse) Next() quest.NextInterface {
-	return &quest.Next{&SpecialClient{&quest.Client{}}, r.GetRequest().GetError()}
+  return &quest.Next{&SpecialClient{&quest.Client{}}, r.GetRequest().GetError()}
 }
 
 func main() {
