@@ -3,6 +3,7 @@ package quest
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -118,6 +119,16 @@ func (r *Request) Header(key, value string) *Request {
 		return r
 	}
 	r.headers[key] = value
+	return r
+}
+
+// Header sets a header on request with given key and value
+func (r *Request) BasicAuth(username, password string) *Request {
+	if r.err != nil {
+		return r
+	}
+	auth := username + ":" + password
+	r.headers["Authorization"] = "Basic " + base64.StdEncoding.EncodeToString([]byte(auth))
 	return r
 }
 
