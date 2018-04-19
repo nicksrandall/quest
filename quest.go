@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -235,6 +236,18 @@ func (r *Request) Send() *Response {
 		Response: resp,
 		req:      r,
 	}
+}
+
+// Proxy copies the body of the response to a given writer
+func (r *Response) Proxy(w io.Writer) *Response {
+	if r.req.err != nil {
+		return r
+	}
+	_, err := io.Copy(w, r.Response.Body)
+	if err != nil {
+		r.req.err = handleResponseError(err, r.req, r)
+	}
+	return r
 }
 
 // ExpectSuccess will error if StatusCode is not in 200 range
