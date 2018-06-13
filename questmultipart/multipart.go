@@ -66,7 +66,7 @@ func JSONEncode(w io.Writer, data interface{}) error {
 	return enc.Encode(data)
 }
 
-func ReaderEncode(w io.Writer, data interface{}) error {
+func CopyEncode(w io.Writer, data interface{}) error {
 	_, err := io.Copy(w, data.(io.Reader))
 	return err
 }
