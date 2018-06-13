@@ -15,9 +15,7 @@ type Form struct {
 	Err    error
 }
 
-type Encoder interface {
-	Encode(io.Writer, interface{}) error
-}
+type Encoder func(io.Writer, interface{}) error
 
 func New() *Form {
 	buffer := &bytes.Buffer{}
@@ -31,7 +29,7 @@ func (f *Form) AddFile(fieldName string, fileName string, value interface{}, enc
 		f.Err = err
 		return f
 	}
-	err = encoder.Encode(fileWriter, value)
+	err = encoder(fileWriter, value)
 	if err != nil {
 		f.Err = err
 		return f
@@ -57,24 +55,18 @@ func (f *Form) Close() *Form {
 	return f
 }
 
-type XMLEncoder struct{}
-
-func (x *XMLEncoder) Encode(w io.Writer, data interface{}) error {
+func XMLEncode(w io.Writer, data interface{}) error {
 	fmt.Fprintf(w, "%s\n", xml.Header)
 	enc := xml.NewEncoder(w)
 	return enc.Encode(data)
 }
 
-type JSONEncoder struct{}
-
-func (x *JSONEncoder) Encode(w io.Writer, data interface{}) error {
+func JSONEncode(w io.Writer, data interface{}) error {
 	enc := json.NewEncoder(w)
 	return enc.Encode(data)
 }
 
-type CopyEncoder struct{}
-
-func (x *CopyEncoder) Encode(w io.Writer, data interface{}) error {
+func ReaderEncode(w io.Writer, data interface{}) error {
 	_, err := io.Copy(w, data.(io.Reader))
 	return err
 }
