@@ -21,11 +21,12 @@ import (
 // Request is the HTTP request to be sent
 type Request struct {
 	*url.URL
-	method  string
-	data    *bytes.Buffer
-	headers map[string]string
-	err     error
-	span    opentracing.Span
+	transport *http.Transport
+	method    string
+	data      *bytes.Buffer
+	headers   map[string]string
+	err       error
+	span      opentracing.Span
 }
 
 // Response is the HTTP response
@@ -122,7 +123,7 @@ func (r *Request) Header(key, value string) *Request {
 	return r
 }
 
-// Header sets a header on request with given key and value
+// BasicAuth sets a header on request with given key and value
 func (r *Request) BasicAuth(username, password string) *Request {
 	if r.err != nil {
 		return r
@@ -191,6 +192,15 @@ func (r *Request) MultipartBody(form *questmultipart.Form) *Request {
 	return r.Body(form.Buffer)
 }
 
+// WithTransport sets the transport for the http client
+func (r *Request) WithTransport(transport *http.Transport) *Request {
+	if r.err != nil {
+		return r
+	}
+	r.transport = transport
+	return r
+}
+
 // Send sends the request and returns the response
 func (r *Request) Send() *Response {
 	if r.err != nil {
@@ -201,6 +211,9 @@ func (r *Request) Send() *Response {
 	}
 
 	client := &http.Client{}
+	if r.transport != nil {
+		client.Transport = r.transport
+	}
 
 	if r.span != nil {
 		r.span.SetTag("http.method", r.method)
