@@ -10,7 +10,7 @@ If any method in the request's life-cycle errors, the every subsequent method wi
 func GetUser(ctx context.Context, userId string) (user.User, error) {
 	var user user.User
 	err := quest.Post("/api/to/user/endpoint").
-		StartSpan(ctx). // used for open tracing
+		WitContext(ctx). // used for open tracing
 		QueryParam("includeDetails", "true").
 		JSONBody(userId).
 		Send().
