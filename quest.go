@@ -26,7 +26,7 @@ type Request struct {
 	data      *bytes.Buffer
 	headers   map[string]string
 	err       error
-	span      opentracing.Span
+	ctx       context.Context
 }
 
 // Response is the HTTP response
@@ -108,9 +108,9 @@ func (n *Next) Delete(path string) *Request {
 	return n.New(http.MethodDelete, path)
 }
 
-// StartSpan creates an open tracing span for request
-func (r *Request) StartSpan(ctx context.Context) *Request {
-	r.span, _ = opentracing.StartSpanFromContext(ctx, "Quest: request")
+// WithContext sets up a context for this request
+func (r *Request) WithContext(ctx context.Context) *Request {
+	r.ctx = ctx
 	return r
 }
 
@@ -215,17 +215,6 @@ func (r *Request) Send() *Response {
 		client.Transport = r.transport
 	}
 
-	if r.span != nil {
-		r.span.SetTag("http.method", r.method)
-		r.span.SetTag("http.host", r.URL.Host)
-		r.span.SetTag("http.path", r.URL.Path)
-		ext.HTTPUrl.Set(
-			r.span,
-			fmt.Sprintf("%s://%s%s", r.URL.Scheme, r.URL.Host, r.URL.Path),
-		)
-		defer r.span.Finish()
-	}
-
 	req, err := http.NewRequest(r.method, r.URL.String(), r.data)
 	if err != nil {
 		r.err = handleRequestError(err, r)
@@ -239,12 +228,24 @@ func (r *Request) Send() *Response {
 		req.Header.Set(key, value)
 	}
 
-	if r.span != nil {
+	if r.ctx != nil {
+		req = req.WithContext(r.ctx)
+		span, _ := opentracing.StartSpanFromContext(r.ctx, "Quest: request")
+		span.SetTag("http.method", r.method)
+		span.SetTag("http.host", r.URL.Host)
+		span.SetTag("http.path", r.URL.Path)
+		ext.HTTPUrl.Set(
+			span,
+			fmt.Sprintf("%s://%s%s", r.URL.Scheme, r.URL.Host, r.URL.Path),
+		)
+
 		opentracing.GlobalTracer().Inject(
-			r.span.Context(),
+			span.Context(),
 			opentracing.HTTPHeaders,
 			opentracing.HTTPHeadersCarrier(req.Header),
 		)
+
+		defer span.Finish()
 	}
 
 	resp, err := client.Do(req)

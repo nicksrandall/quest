@@ -23,7 +23,7 @@ func New() *Form {
 	return &Form{buffer, writer, nil}
 }
 
-func (f *Form) AddFile(fieldName string, fileName string, value interface{}, encoder Encoder) *Form {
+func (f *Form) AddFile(fieldName, fileName string, value interface{}, encoder Encoder) *Form {
 	fileWriter, err := f.Writer.CreateFormFile(fieldName, fileName)
 	if err != nil {
 		f.Err = err
