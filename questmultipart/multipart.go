@@ -2,11 +2,12 @@ package questmultipart
 
 import (
 	"bytes"
-	"encoding/json"
 	"encoding/xml"
 	"fmt"
 	"io"
 	"mime/multipart"
+
+	jsoniter "github.com/json-iterator/go"
 )
 
 type Form struct {
@@ -62,7 +63,7 @@ func XMLEncode(w io.Writer, data interface{}) error {
 }
 
 func JSONEncode(w io.Writer, data interface{}) error {
-	enc := json.NewEncoder(w)
+	enc := jsoniter.NewEncoder(w)
 	return enc.Encode(data)
 }
 

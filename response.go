@@ -2,14 +2,14 @@ package quest
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
+
+	"github.com/json-iterator/go"
 )
 
 // Response is the HTTP response
@@ -105,21 +105,6 @@ func (r *Response) GetHeader(key string, into *string) *Response {
 	return r
 }
 
-// PrintJSON will print response as json, can be use for debugging purposes
-func (r *Response) PrintJSON() *Response {
-	if r.req.err != nil {
-		return r
-	}
-	buffer, _ := ioutil.ReadAll(r.Response.Body)
-	dst := bytes.Buffer{}
-	json.Indent(&dst, buffer, "*", "\t")
-	fmt.Printf("Response JSON:")
-	dst.WriteTo(os.Stdout)
-	fmt.Println("")
-	r.Response.Body = ioutil.NopCloser(bytes.NewBuffer(buffer))
-	return r
-}
-
 // GetBody stores the response body into into param
 func (r *Response) GetBody(into *string) *Response {
 	if r.req.err != nil {
@@ -138,7 +123,7 @@ func (r *Response) GetJSON(into interface{}) *Response {
 		return r
 	}
 	defer r.Response.Body.Close()
-	dec := json.NewDecoder(r.Response.Body)
+	dec := jsoniter.NewDecoder(r.Response.Body)
 	err := dec.Decode(into)
 	if err != nil {
 		r.req.err = handleResponseError(err, r.req, r)
@@ -160,9 +145,9 @@ func (r *Response) Done() error {
 	return r.req.err
 }
 
-// MarshalJSON implements `json.Marshaler` interface
+// MarshalJSON implements `jsoniter.Marshaler` interface
 func (r *Request) MarshalJSON() ([]byte, error) {
-	return json.MarshalIndent(requestJSON{
+	return jsoniter.MarshalIndent(requestJSON{
 		r.URL,
 		r.method,
 		string(r.data.Bytes()),
@@ -170,10 +155,10 @@ func (r *Request) MarshalJSON() ([]byte, error) {
 	}, "", "  ")
 }
 
-// UnmarshalJSON implements `json.Unmarshaler` interface
+// UnmarshalJSON implements `jsoniter.Unmarshaler` interface
 func (r *Request) UnmarshalJSON(b []byte) error {
 	temp := &requestJSON{}
-	if err := json.Unmarshal(b, &temp); err != nil {
+	if err := jsoniter.Unmarshal(b, &temp); err != nil {
 		return err
 	}
 
@@ -199,10 +184,10 @@ type responseJSON struct {
 	ContentLength int64
 }
 
-// MarshalJSON implements `json.Marshaler` interface
+// MarshalJSON implements `jsoniter.Marshaler` interface
 func (r *Response) MarshalJSON() ([]byte, error) {
 	body, _ := ioutil.ReadAll(r.Response.Body)
-	return json.MarshalIndent(responseJSON{
+	return jsoniter.MarshalIndent(responseJSON{
 		r.Response.StatusCode,
 		r.Response.Header,
 		string(body),
@@ -210,18 +195,18 @@ func (r *Response) MarshalJSON() ([]byte, error) {
 	}, "", "  ")
 }
 
-// UnmarshalJSON implements `json.Unmarshaler` interface
+// UnmarshalJSON implements `jsoniter.Unmarshaler` interface
 func (r *Response) UnmarshalJSON(b []byte) error {
 	// not implemented
 	return nil
 }
 
 func (r *Request) format() string {
-	b, _ := json.MarshalIndent(r, "", "  ")
+	b, _ := jsoniter.MarshalIndent(r, "", "  ")
 	return string(b)
 }
 
 func (r *Response) format() string {
-	b, _ := json.MarshalIndent(r, "", "  ")
+	b, _ := jsoniter.MarshalIndent(r, "", "  ")
 	return string(b)
 }

@@ -4,12 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
 
+	jsoniter "github.com/json-iterator/go"
 	"github.com/nicksrandall/quest/questmultipart"
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
@@ -129,7 +129,7 @@ func (r *Request) JSONBody(value interface{}) *Request {
 	if r.err != nil {
 		return r
 	}
-	b, err := json.Marshal(value)
+	b, err := jsoniter.Marshal(value)
 	if err != nil {
 		r.err = handleRequestError(err, r)
 		return r
