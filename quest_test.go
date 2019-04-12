@@ -47,6 +47,17 @@ func TestQuest(t *testing.T) {
 	if header != token {
 		t.Errorf("Response header was not set: %q, %q", header, token)
 	}
+
+	// test never closing the response.body
+	err = Get(ts.URL).
+		Header(Auth(token)).
+		Send().
+		ExpectSuccess().
+		Done()
+
+	if err != nil {
+		t.Error(err.Error())
+	}
 }
 
 func Example() {

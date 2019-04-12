@@ -110,7 +110,6 @@ func (r *Response) GetBody(into *string) *Response {
 	if r.req.err != nil {
 		return r
 	}
-	defer r.Response.Body.Close()
 	buf := new(bytes.Buffer)
 	buf.ReadFrom(r.Response.Body)
 	*into = buf.String()
@@ -122,7 +121,6 @@ func (r *Response) GetJSON(into interface{}) *Response {
 	if r.req.err != nil {
 		return r
 	}
-	defer r.Response.Body.Close()
 	dec := jsoniter.NewDecoder(r.Response.Body)
 	err := dec.Decode(into)
 	if err != nil {
@@ -142,6 +140,7 @@ func (r *Response) Next() *Next {
 // It is important to note that if any method errors, all subsequest methods will short
 // circut and not be execuited
 func (r *Response) Done() error {
+	r.Body.Close()
 	return r.req.err
 }
 
@@ -186,6 +185,7 @@ type responseJSON struct {
 
 // MarshalJSON implements `jsoniter.Marshaler` interface
 func (r *Response) MarshalJSON() ([]byte, error) {
+	defer r.Response.Body.Close()
 	body, _ := ioutil.ReadAll(r.Response.Body)
 	return jsoniter.MarshalIndent(responseJSON{
 		r.Response.StatusCode,
