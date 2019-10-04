@@ -140,7 +140,7 @@ func (r *Response) Next() *Next {
 // It is important to note that if any method errors, all subsequest methods will short
 // circut and not be execuited
 func (r *Response) Done() error {
-	if r.Body != nil {
+	if r.Response != nil {
 		r.Body.Close()
 	}
 	return r.req.err
