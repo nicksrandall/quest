@@ -9,7 +9,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/json-iterator/go"
+	jsoniter "github.com/json-iterator/go"
 )
 
 // Response is the HTTP response
@@ -23,10 +23,14 @@ func (r *Response) Proxy(w io.Writer) *Response {
 	if r.req.err != nil {
 		return r
 	}
-	_, err := io.Copy(w, r.Response.Body)
+	defer r.Response.Body.Close()
+	var buf bytes.Buffer
+	tee := io.TeeReader(r.Response.Body, &buf)
+	_, err := io.Copy(w, tee)
 	if err != nil {
 		r.req.err = handleResponseError(err, r.req, r)
 	}
+	r.Response.Body = ioutil.NopCloser(&buf)
 	return r
 }
 
@@ -110,9 +114,19 @@ func (r *Response) GetBody(into *string) *Response {
 	if r.req.err != nil {
 		return r
 	}
-	buf := new(bytes.Buffer)
-	buf.ReadFrom(r.Response.Body)
-	*into = buf.String()
+
+	defer r.Response.Body.Close()
+	var buf bytes.Buffer
+	tee := io.TeeReader(r.Response.Body, &buf)
+
+	b, err := ioutil.ReadAll(tee)
+	if err != nil {
+		r.req.err = handleResponseError(err, r.req, r)
+		return r
+	}
+
+	*into = string(b)
+	r.Response.Body = ioutil.NopCloser(&buf)
 	return r
 }
 
@@ -121,11 +135,18 @@ func (r *Response) GetJSON(into interface{}) *Response {
 	if r.req.err != nil {
 		return r
 	}
-	dec := jsoniter.NewDecoder(r.Response.Body)
+
+	defer r.Response.Body.Close()
+	var buf bytes.Buffer
+	tee := io.TeeReader(r.Response.Body, &buf)
+
+	dec := jsoniter.NewDecoder(tee)
 	err := dec.Decode(into)
 	if err != nil {
 		r.req.err = handleResponseError(err, r.req, r)
 	}
+
+	r.Response.Body = ioutil.NopCloser(&buf)
 	return r
 }
 
@@ -140,9 +161,6 @@ func (r *Response) Next() *Next {
 // It is important to note that if any method errors, all subsequest methods will short
 // circut and not be execuited
 func (r *Response) Done() error {
-	if r.Response != nil {
-		r.Body.Close()
-	}
 	return r.req.err
 }
 

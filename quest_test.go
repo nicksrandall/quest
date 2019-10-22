@@ -24,6 +24,10 @@ func TestQuest(t *testing.T) {
 			t.Error("Header was not set on request")
 		}
 		w.Header().Set(Header, token)
+		isBad := r.URL.Query().Get("bad")
+		if isBad != "" {
+			w.WriteHeader(400)
+		}
 		fmt.Fprint(w, TestString)
 	}))
 	defer ts.Close()
@@ -49,10 +53,10 @@ func TestQuest(t *testing.T) {
 	}
 
 	// test never closing the response.body
-	err = Get(ts.URL).
+	err = Get(ts.URL + "?bad=true").
 		Header(Auth(token)).
 		Send().
-		ExpectSuccess().
+		ExpectStatusCode(400).
 		Done()
 
 	if err != nil {
